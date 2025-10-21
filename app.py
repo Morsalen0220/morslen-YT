@@ -44,6 +44,7 @@ def get_info():
             'cachedir': False, 
             'no_warnings': True,
             'ffmpeg_location': FFMPEG_EXE_PATH,
+            'cookiefile': 'youtube_cookies.txt',
         }
         
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -155,6 +156,7 @@ def download_stream(stream_id):
             'force_overwrite': True,
             'merge_output_format': 'mp4', 
             'ffmpeg_location': FFMPEG_EXE_PATH,
+            'cookiefile': 'youtube_cookies.txt',
         }
 
         if stream_id == 'mp3_convert':
