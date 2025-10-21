@@ -34,6 +34,19 @@
             text-align: center;
             padding: 20px;
         }
+        /* ডাউনলোড শেষ হওয়ার পর মেসেজ দেখানোর জন্য */
+        .download-message {
+            margin-top: 15px;
+            padding: 10px;
+            border-radius: 5px;
+            text-align: center;
+            font-weight: bold;
+        }
+        /* ডাউনলোড চলাকালীন বাটন ডিসেবল করতে */
+        .download-button.disabled {
+            pointer-events: none;
+            opacity: 0.6;
+        }
     </style>
 </head>
 <body>
@@ -67,14 +80,17 @@
 
                 <!-- এরর মেসেজ -->
                 <div id="errorMessage" class="alert alert-danger" style="display:none;"></div>
+                
+                <!-- ডাউনলোড স্ট্যাটাস মেসেজ (সফলতার জন্য) -->
+                <div id="downloadStatusMessage" class="download-message bg-info text-white" style="display:none;">ডাউনলোড শুরু হয়েছে... ফাইলটি সম্পূর্ণ না হওয়া পর্যন্ত এই পেজটি খোলা রাখুন।</div>
 
-                <!-- ডেমো রেজাল্ট সেকশন -->
+                <!-- রেজাল্ট সেকশন -->
                 <div id="resultCard" class="card mt-4" style="display:none;">
                     <div class="card-header bg-success text-white">
                         ডাউনলোড অপশন এবং ভিডিও তথ্য
                     </div>
                     <div class="card-body">
-                        <!-- ভিডিও ডিটেইলস -->
+                        
                         <div class="video-details">
                             <img id="videoThumbnail" src="" alt="ভিডিও থাম্বনেইল" class="float-end ms-3" style="width: 120px; height: auto;">
                             <h5 class="card-title" id="videoTitle"></h5>
@@ -82,7 +98,6 @@
                             <p class="card-text"><small>সময়কাল: <span id="videoDuration"></span></small></p>
                         </div>
 
-                        <!-- রেজাল্ট টেবিল -->
                         <h6 class="fw-bold mt-3 mb-3">ডাউনলোড কোয়ালিটি:</h6>
                         <table class="table table-bordered result-table">
                             <thead>
@@ -113,7 +128,9 @@
             const loadingSpinner = document.getElementById('loading');
             const errorMessage = document.getElementById('errorMessage');
             const qualityOptionsBody = document.getElementById('qualityOptions');
-
+            const downloadStatusMessage = document.getElementById('downloadStatusMessage');
+            
+            // --- ইভেন্ট লিসেনার: ডাউনলোড অপশন তৈরি করা ---
             downloadForm.addEventListener('submit', function(e) {
                 e.preventDefault();
                 const url = urlInput.value;
@@ -121,6 +138,7 @@
                 // --- UI রিসেট ও লোডিং চালু ---
                 resultCard.style.display = 'none';
                 errorMessage.style.display = 'none';
+                downloadStatusMessage.style.display = 'none';
                 qualityOptionsBody.innerHTML = '';
                 loadingSpinner.style.display = 'block';
                 generateButton.disabled = true;
@@ -128,7 +146,7 @@
                 const formData = new FormData();
                 formData.append('url', url);
 
-                // --- Flask Backend (/get_info) এ Fetch কল করা ---
+                // API কল: ভিডিও তথ্য আনার জন্য
                 fetch('/get_info', {
                     method: 'POST',
                     body: formData
@@ -145,7 +163,7 @@
                     }
 
                     // --- ভিডিও তথ্য আপডেট করুন ---
-                    const encodedTitle = encodeURIComponent(data.title); // ডাউনলোড লিঙ্কে পাঠানোর জন্য এনকোড করা
+                    const encodedTitle = encodeURIComponent(data.title);
 
                     document.getElementById('videoTitle').innerText = data.title;
                     document.getElementById('videoAuthor').innerText = data.channel;
@@ -165,41 +183,33 @@
                             <tr>
                                 <td>${icon} ${stream.quality}</td>
                                 <td>${stream.size}</td>
-                                <td><a href="${downloadPath}" class="btn ${buttonClass} btn-sm download-link" data-title="${encodedTitle}" data-ext="${stream.ext}"><i class="fas fa-download"></i> ডাউনলোড</a></td>
+                                <td><a href="${downloadPath}" class="btn ${buttonClass} btn-sm download-button" data-stream-id="${stream.id}"><i class="fas fa-download"></i> ডাউনলোড</a></td>
                             </tr>
                         `;
                         qualityOptionsBody.insertAdjacentHTML('beforeend', row);
                     });
 
                     resultCard.style.display = 'block';
+                    
+                    // --- ইভেন্ট লিসেনার: ডাউনলোড বাটনে ক্লিক করলে স্ট্যাটাস মেসেজ দেখানো ---
+                    document.querySelectorAll('.download-button').forEach(button => {
+                        button.addEventListener('click', function(e) {
+                            // ডাউনলোড শুরু হওয়ার মেসেজ দেখানো
+                            downloadStatusMessage.style.display = 'block';
+                            // সব বাটন ডিসেবল করা
+                            document.querySelectorAll('.download-button').forEach(btn => btn.classList.add('disabled'));
+                            // ব্রাউজারকে ফাইল ডাউনলোডের জন্য লিঙ্কটি অনুসরণ করতে দেওয়া
+                        });
+                    });
                 })
                 .catch(error => {
                     loadingSpinner.style.display = 'none';
                     generateButton.disabled = false;
-                    errorMessage.innerText = '❌ নেটওয়ার্ক ত্রুটি বা সার্ভার সংযোগ বিচ্ছিন্ন। (কনসোল দেখুন)';
+                    errorMessage.innerText = '❌ নেটওয়ার্ক ত্রুটি বা সার্ভার সংযোগ বিচ্ছিন্ন।';
                     errorMessage.style.display = 'block';
                     console.error('Fetch Error:', error);
                 });
             });
-
-            // --- ডাউনলোড লিঙ্ক ক্লিক হ্যান্ডলার (Success Page-এর জন্য) ---
-            document.getElementById('resultCard').addEventListener('click', function(e) {
-                if (e.target.closest('.download-link')) {
-                    e.preventDefault();
-                    const downloadLink = e.target.closest('.download-link');
-                    const fileUrl = downloadLink.href;
-                    
-                    // 1. ফাইল ডাউনলোড শুরু করুন
-                    window.location.href = fileUrl;
-
-                    // 2. ডাউনলোড শেষ হওয়ার পরে success পেজে রিডাইরেক্ট করুন
-                    // একটি ছোট বিলম্ব যোগ করা হয়েছে যাতে ডাউনলোড শুরু করার জন্য ব্রাউজার সময় পায়।
-                    setTimeout(() => {
-                        window.location.href = '/success';
-                    }, 1000); 
-                }
-            });
-
         });
     </script>
 </body>

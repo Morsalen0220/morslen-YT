@@ -1,0 +1,4 @@
+# requirements.txt
+Flask
+yt-dlp
+gunicorn # Vercel-এর সার্ভারলেস ফাংশন চালানোর জন্য
