@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ইউটিউব ডাউনলোডার</title>
+    <!-- Bootstrap 5 CDN for easy styling -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        body {
+            background-color: #f8f9fa;
+        }
+        .container {
+            max-width: 800px;
+            margin-top: 50px;
+        }
+        .card-header {
+            background-color: #dc3545; /* YouTube Red */
+            color: white;
+            font-size: 1.5rem;
+            font-weight: bold;
+        }
+        .result-table th, .result-table td {
+            vertical-align: middle;
+        }
+        .video-details {
+            border-bottom: 1px solid #dee2e6;
+            padding-bottom: 15px;
+            margin-bottom: 15px;
+        }
+        #loading {
+            text-align: center;
+            padding: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="card shadow-lg">
+            <div class="card-header text-center">
+                <i class="fab fa-youtube"></i> ইউটিউব ভিডিও কনভার্টার
+            </div>
+            <div class="card-body">
+                
+                <!-- ইনপুট ফর্ম সেকশন -->
+                <form id="downloadForm">
+                    <div class="mb-3">
+                        <label for="youtubeLink" class="form-label fw-bold">ইউটিউব লিঙ্ক দিন:</label>
+                        <input type="url" class="form-control form-control-lg" id="youtubeLink" placeholder="উদাহরণ: https://www.youtube.com/watch?v=..." required>
+                    </div>
+                    <div class="d-grid gap-2 mb-4">
+                        <button type="submit" class="btn btn-danger btn-lg" id="generateButton">
+                            <i class="fas fa-magic"></i> ডাউনলোড লিঙ্ক তৈরি করুন
+                        </button>
+                    </div>
+                </form>
+
+                <!-- লোডিং স্পিনার -->
+                <div id="loading" style="display:none;">
+                    <div class="spinner-border text-danger" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mt-2">তথ্য লোড হচ্ছে, দয়া করে অপেক্ষা করুন...</p>
+                </div>
+
+                <!-- এরর মেসেজ -->
+                <div id="errorMessage" class="alert alert-danger" style="display:none;"></div>
+
+                <!-- ডেমো রেজাল্ট সেকশন -->
+                <div id="resultCard" class="card mt-4" style="display:none;">
+                    <div class="card-header bg-success text-white">
+                        ডাউনলোড অপশন এবং ভিডিও তথ্য
+                    </div>
+                    <div class="card-body">
+                        <!-- ভিডিও ডিটেইলস -->
+                        <div class="video-details">
+                            <img id="videoThumbnail" src="" alt="ভিডিও থাম্বনেইল" class="float-end ms-3" style="width: 120px; height: auto;">
+                            <h5 class="card-title" id="videoTitle"></h5>
+                            <p class="card-text mb-1"><small>চ্যানেল: <span id="videoAuthor"></span></small></p>
+                            <p class="card-text"><small>সময়কাল: <span id="videoDuration"></span></small></p>
+                        </div>
+
+                        <!-- রেজাল্ট টেবিল -->
+                        <h6 class="fw-bold mt-3 mb-3">ডাউনলোড কোয়ালিটি:</h6>
+                        <table class="table table-bordered result-table">
+                            <thead>
+                                <tr>
+                                    <th>কোয়ালিটি</th>
+                                    <th>সাইজ (MB)</th>
+                                    <th>ডাউনলোড অপশন</th>
+                                </tr>
+                            </thead>
+                            <tbody id="qualityOptions">
+                                <!-- JavaScript দ্বারা পূরণ হবে -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS Bundle -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', (event) => {
+            const downloadForm = document.getElementById('downloadForm');
+            const urlInput = document.getElementById('youtubeLink');
+            const generateButton = document.getElementById('generateButton');
+            const resultCard = document.getElementById('resultCard');
+            const loadingSpinner = document.getElementById('loading');
+            const errorMessage = document.getElementById('errorMessage');
+            const qualityOptionsBody = document.getElementById('qualityOptions');
+
+            downloadForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                const url = urlInput.value;
+                
+                // --- UI রিসেট ও লোডিং চালু ---
+                resultCard.style.display = 'none';
+                errorMessage.style.display = 'none';
+                qualityOptionsBody.innerHTML = '';
+                loadingSpinner.style.display = 'block';
+                generateButton.disabled = true;
+
+                const formData = new FormData();
+                formData.append('url', url);
+
+                // --- Flask Backend (/get_info) এ Fetch কল করা ---
+                fetch('/get_info', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    loadingSpinner.style.display = 'none';
+                    generateButton.disabled = false;
+
+                    if (data.error) {
+                        errorMessage.innerText = '❌ ত্রুটি: ' + data.message;
+                        errorMessage.style.display = 'block';
+                        return;
+                    }
+
+                    // --- ভিডিও তথ্য আপডেট করুন ---
+                    const encodedTitle = encodeURIComponent(data.title); // ডাউনলোড লিঙ্কে পাঠানোর জন্য এনকোড করা
+
+                    document.getElementById('videoTitle').innerText = data.title;
+                    document.getElementById('videoAuthor').innerText = data.channel;
+                    document.getElementById('videoDuration').innerText = data.duration;
+                    document.getElementById('videoThumbnail').src = data.thumbnail;
+                    
+                    // --- ডাউনলোড অপশন তৈরি করুন ---
+                    data.streams.forEach(stream => {
+                        const isAudio = stream.type.includes('audio');
+                        const icon = isAudio ? '<i class="fas fa-music"></i>' : '<i class="fas fa-video"></i>';
+                        const buttonClass = isAudio ? 'btn-outline-success' : 'btn-outline-primary';
+                        
+                        // ডাউনলোড লিঙ্কের পাথ তৈরি (Flask route: /download/<stream_id>)
+                        const downloadPath = `/download/${stream.id}?url=${encodeURIComponent(url)}&ext=${stream.ext}&title=${encodedTitle}`;
+
+                        const row = `
+                            <tr>
+                                <td>${icon} ${stream.quality}</td>
+                                <td>${stream.size}</td>
+                                <td><a href="${downloadPath}" class="btn ${buttonClass} btn-sm download-link" data-title="${encodedTitle}" data-ext="${stream.ext}"><i class="fas fa-download"></i> ডাউনলোড</a></td>
+                            </tr>
+                        `;
+                        qualityOptionsBody.insertAdjacentHTML('beforeend', row);
+                    });
+
+                    resultCard.style.display = 'block';
+                })
+                .catch(error => {
+                    loadingSpinner.style.display = 'none';
+                    generateButton.disabled = false;
+                    errorMessage.innerText = '❌ নেটওয়ার্ক ত্রুটি বা সার্ভার সংযোগ বিচ্ছিন্ন। (কনসোল দেখুন)';
+                    errorMessage.style.display = 'block';
+                    console.error('Fetch Error:', error);
+                });
+            });
+
+            // --- ডাউনলোড লিঙ্ক ক্লিক হ্যান্ডলার (Success Page-এর জন্য) ---
+            document.getElementById('resultCard').addEventListener('click', function(e) {
+                if (e.target.closest('.download-link')) {
+                    e.preventDefault();
+                    const downloadLink = e.target.closest('.download-link');
+                    const fileUrl = downloadLink.href;
+                    
+                    // 1. ফাইল ডাউনলোড শুরু করুন
+                    window.location.href = fileUrl;
+
+                    // 2. ডাউনলোড শেষ হওয়ার পরে success পেজে রিডাইরেক্ট করুন
+                    // একটি ছোট বিলম্ব যোগ করা হয়েছে যাতে ডাউনলোড শুরু করার জন্য ব্রাউজার সময় পায়।
+                    setTimeout(() => {
+                        window.location.href = '/success';
+                    }, 1000); 
+                }
+            });
+
+        });
+    </script>
+</body>
+</html>
